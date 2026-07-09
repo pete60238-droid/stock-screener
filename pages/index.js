@@ -8,6 +8,7 @@ import MarketSection from "../components/MarketSection";
 import Favorites from "../components/Favorites";
 import ScannerSwitcher from "../components/ScannerSwitcher";
 import SettinMenu from "../components/SettinMenu";
+import DiscoveryTab from "../components/DiscoveryTab";
 
 export default function Home() {
   const [stage, setStage] = useState("loading");
@@ -95,6 +96,8 @@ export default function Home() {
         return <ScannerSwitcher />;
       case "settings":
         return <SettinMenu />;
+      case "discovery":
+        return <DiscoveryTab />;
       default:
         return <MarketSection />;
     }
@@ -109,6 +112,7 @@ export default function Home() {
         {[
           { id: "favorites", label: "Favorites" },
           { id: "market", label: "OriginX" },
+          { id: "discovery", label: "Discovery" },
           { id: "scanner", label: "Scanner" },
           { id: "settings", label: "Settings" },
         ].map((t) => (

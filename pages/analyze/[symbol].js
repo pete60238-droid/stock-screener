@@ -2,6 +2,7 @@
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import StockLogo from "../../components/StockLogo";
 
 const Chart = dynamic(() => import("../../components/Chart.js"), { ssr: false });
 const fmt = (n, d = 2) => (Number.isFinite(n) ? Number(n).toFixed(d) : "-");
@@ -10,6 +11,7 @@ export default function Analyze() {
   const { query } = useRouter();
   const symbol = (query.symbol || "").toString().toUpperCase();
   const [core, setCore] = useState(null);
+  const [future, setFuture] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -17,9 +19,15 @@ export default function Analyze() {
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/visionary-infinite-core?symbol=${symbol}`).then(r => r.json());
-        if (res && !res.error) {
-          setCore(res);
+        const [coreRes, futureRes] = await Promise.allSettled([
+          fetch(`/api/visionary-infinite-core?symbol=${symbol}`).then(r => r.json()),
+          fetch(`/api/future-discovery?symbol=${symbol}`).then(r => r.json()),
+        ]);
+        if (coreRes.status === "fulfilled" && coreRes.value && !coreRes.value.error) {
+          setCore(coreRes.value);
+        }
+        if (futureRes.status === "fulfilled" && futureRes.value && !futureRes.value.error) {
+          setFuture(futureRes.value);
         }
       } catch (e) {
         console.error("⚠️ Analyzer fetch error:", e);
@@ -58,9 +66,12 @@ export default function Analyze() {
       <div className="max-w-6xl mx-auto px-3 py-5 space-y-5">
         <div className="flex justify-between items-center">
           <button onClick={() => window.history.back()} className="text-[12px] bg-white/5 px-3 py-1 rounded border border-white/10 hover:bg-emerald-500/10">← Back</button>
-          <div className="flex flex-col items-center">
-             <h1 className="text-[16px] font-bold tracking-widest">{symbol}</h1>
-             {core?.isSmallCap && <span className="text-[10px] text-pink-400 font-bold uppercase">Small-Cap Potential</span>}
+          <div className="flex items-center gap-3">
+             <StockLogo symbol={symbol} size={44} />
+             <div className="flex flex-col">
+                <h1 className="text-[16px] font-bold tracking-widest">{symbol}</h1>
+                {core?.isSmallCap && <span className="text-[10px] text-pink-400 font-bold uppercase">Small-Cap Potential</span>}
+             </div>
           </div>
           <div className="text-emerald-400 font-bold text-[14px] border border-emerald-400/30 rounded px-3 py-1 bg-emerald-500/5">${fmt(price, 2)}</div>
         </div>
@@ -98,6 +109,36 @@ export default function Analyze() {
                  <SmallInfo label="Sentiment" value={core?.analysis?.news_sentiment} />
               </div>
            </section>
+
+           {/* Future Analysis Section */}
+           {future && (
+             <section className="rounded-2xl border border-white/10 bg-[#141b2d] p-4 space-y-4">
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                  <h2 className="text-[14px] font-bold text-purple-400">🔭 Future Analysis</h2>
+                  <div className="flex items-center gap-2">
+                     <span className="text-[11px] text-gray-400 uppercase">Score</span>
+                     <div className="text-[16px] font-black" style={{ color: future.futureScore >= 75 ? "#10b981" : future.futureScore >= 60 ? "#3b82f6" : "#f59e0b" }}>{future.futureScore}</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                   <AnalysisBox label="Potential" value={future.potential} color="text-purple-400" />
+                   <AnalysisBox label="Signal" value={future.signal} color={future.signal.includes("Buy") ? "text-emerald-400" : "text-red-400"} />
+                   <AnalysisBox label="Trend" value={future.trend} color={future.trend.includes("Up") ? "text-emerald-400" : future.trend.includes("Down") ? "text-red-400" : "text-yellow-400"} />
+                   <AnalysisBox label="5D Change" value={`${future.change5d > 0 ? "+" : ""}${future.change5d.toFixed(2)}%`} color={future.change5d > 0 ? "text-emerald-400" : "text-red-400"} />
+                </div>
+
+                <div className="bg-[#0f172a] rounded-xl border border-white/5 p-3">
+                   <div className="text-purple-400 text-[11px] font-bold uppercase mb-1">Multi-Dimension Analysis</div>
+                   <div className="space-y-1 text-[11px] text-gray-300">
+                      <div>📊 Trend: {future.analysis?.trend_strength}</div>
+                      <div>📈 RSI: {future.analysis?.rsi_level}</div>
+                      <div>📦 Volume: {future.analysis?.volume_status}</div>
+                      <div>🔄 MACD: {future.analysis?.macd_signal}</div>
+                   </div>
+                </div>
+             </section>
+           )}
 
            {/* Market News Section */}
            <section className="rounded-2xl border border-white/10 bg-[#141b2d] p-4">

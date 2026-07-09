@@ -1,0 +1,1 @@
+"use strict";exports.id=920,exports.ids=[920],exports.modules={1920:(e,t,s)=>{s.a(e,async(e,r)=>{try{s.r(t),s.d(t,{default:()=>i});var a=s(997),u=s(6689),c=s(3294),d=e([c]);function i({candles:e=[],markers:t=[]}){let s=(0,u.useRef)();return a.jsx("div",{ref:s,className:"w-full h-[320px]"})}c=(d.then?(await d)():d)[0],r()}catch(e){r(e)}})}};
