@@ -138,9 +138,9 @@ export default function MarketSection({ title, rows, loading: loadingProp, favor
                     </div>
                   </Link>
 
-                  {/* Mini Chart */}
-                  <div className="px-2 hidden sm:block">
-                    <MiniChart symbol={r.symbol} width={50} height={20} />
+                  {/* Mini Chart — กราฟราคาแสดงผลในแถวเดิม */}
+                  <div className="px-2 flex-shrink-0">
+                    <MiniChart symbol={r.symbol} width={70} height={24} />
                   </div>
 
                   {/* Price + RSI + Signal */}
