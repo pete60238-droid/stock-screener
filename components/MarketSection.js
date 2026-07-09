@@ -1,4 +1,4 @@
-// ✅ /components/MarketSection.js — Hybrid Market View (Old + New Features)
+// ✅ /components/MarketSection.js — Ultimate Hybrid Market View (Logo + Chart + TP/SL/AI Zone)
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import StockLogo from "./StockLogo";
@@ -9,16 +9,6 @@ const DEFAULT_SYMBOLS = [
   "IONQ","RKLB","ASTS","CRSP","SLDP","ENVX","SOFI","HASI","LWLG","SOUN",
   "AXTI","LAES","RXRX","NRGV","RIVN"
 ];
-
-const LOGO_MAP = {
-  WULF:"terawulf.com", DNA:"ginkgobioworks.com", BYND:"beyondmeat.com",
-  OSCR:"hioscar.com", BBAI:"bigbear.ai", ACHR:"archer.com", PATH:"uipath.com",
-  MVIS:"microvision.com", SES:"ses.ai", KSCP:"knightscope.com",
-  RKLB:"rocketlabusa.com", ASTS:"ast-science.com", CRSP:"crisprtx.com", SLDP:"solidpowerbattery.com",
-  ENVX:"enovix.com", SOFI:"sofi.com", HASI:"hannonarmstrong.com", LWLG:"lightwavelogic.com",
-  SOUN:"soundhound.com", AXTI:"axt.com", LAES:"sealsq.com", RXRX:"recursion.com",
-  NRGV:"energyvault.com", RIVN:"rivian.com"
-};
 
 const COMPANY_MAP = {
   WULF:"TeraWulf Inc.", DNA:"Ginkgo Bioworks Holdings Inc.", BYND:"Beyond Meat Inc.",
@@ -35,11 +25,9 @@ const COMPANY_MAP = {
 
 export default function MarketSection({ title, rows, loading: loadingProp, favorites = [], toggleFavorite }) {
   const usingParentData = Array.isArray(rows);
-  const [data, setData] = useState({}); // symbol -> row
-  const [futureData, setFutureData] = useState({}); // symbol -> future analysis
-  const [expanded, setExpanded] = useState(null); // which symbol is expanded
+  const [data, setData] = useState({});
+  const [expanded, setExpanded] = useState(null);
 
-  // ✅ โหลดหุ้นทีละตัวแบบแยกอิสระ
   useEffect(() => {
     if (usingParentData) return;
 
@@ -59,14 +47,35 @@ export default function MarketSection({ title, rows, loading: loadingProp, favor
       try {
         const res = await fetch(`/api/visionary-infinite-core?symbol=${sym}`, { cache: "no-store" });
         const json = await res.json();
-        const price = json?.price ?? json?.lastClose ?? 0;
+        
+        if (json.error) throw new Error(json.error);
+        
+        const price = json?.price ?? 0;
         const rsi = json?.rsi ?? 50;
         const signal = json?.signal || (rsi > 55 ? "Buy" : rsi < 45 ? "Sell" : "Hold");
         const aiScore = json?.aiScore || 50;
+        const tp1 = json?.tp1 ?? price * 1.1;
+        const tp2 = json?.tp2 ?? price * 1.2;
+        const sl = json?.sl ?? price * 0.9;
+        const aiZone = json?.aiZone || { support: price * 0.95, resistance: price * 1.05, midpoint: price };
 
         if (cancelled) return;
         setData((prev) => {
-          const next = { ...prev, [sym]: { symbol: sym, company: COMPANY_MAP[sym], price, rsi, signal, aiScore } };
+          const next = {
+            ...prev,
+            [sym]: {
+              symbol: sym,
+              company: COMPANY_MAP[sym],
+              price,
+              rsi,
+              signal,
+              aiScore,
+              tp1,
+              tp2,
+              sl,
+              aiZone,
+            }
+          };
           sessionStorage.setItem("originx-cache", JSON.stringify(Object.values(next)));
           return next;
         });
@@ -91,32 +100,18 @@ export default function MarketSection({ title, rows, loading: loadingProp, favor
     };
   }, [usingParentData]);
 
-  // ✅ โหลด Future Analysis เมื่อ expand
-  useEffect(() => {
-    if (!expanded) return;
-    
-    const loadFuture = async () => {
-      try {
-        const res = await fetch(`/api/future-discovery?symbol=${expanded}`);
-        const json = await res.json();
-        if (!json.error) {
-          setFutureData((prev) => ({ ...prev, [expanded]: json }));
-        }
-      } catch (e) {
-        console.error("Future analysis error:", e);
-      }
-    };
-    
-    loadFuture();
-  }, [expanded]);
-
   const list = usingParentData
     ? rows.map((r) => ({
         symbol: r.symbol,
         company: r.companyName || COMPANY_MAP[r.symbol] || "",
-        price: r.lastClose ?? r.price ?? 0,
+        price: r.price ?? r.lastClose ?? 0,
         rsi: r.rsi ?? 50,
         signal: r.signal || (r.rsi > 55 ? "Buy" : r.rsi < 45 ? "Sell" : "Hold"),
+        aiScore: r.aiScore ?? 50,
+        tp1: r.tp1 ?? (r.price ?? 0) * 1.1,
+        tp2: r.tp2 ?? (r.price ?? 0) * 1.2,
+        sl: r.sl ?? (r.price ?? 0) * 0.9,
+        aiZone: r.aiZone || { support: (r.price ?? 0) * 0.95, resistance: (r.price ?? 0) * 1.05, midpoint: r.price ?? 0 },
       }))
     : DEFAULT_SYMBOLS.map((sym) => data[sym]).filter(Boolean);
 
@@ -135,7 +130,8 @@ export default function MarketSection({ title, rows, loading: loadingProp, favor
           {list.map((r, i) => {
             const isFav = favorites.includes(r.symbol);
             const isExp = expanded === r.symbol;
-            const future = futureData[r.symbol];
+            const profitPct = r.price > 0 ? (((r.tp1 - r.price) / r.price) * 100).toFixed(1) : 0;
+            const lossPct = r.price > 0 ? (((r.price - r.sl) / r.price) * 100).toFixed(1) : 0;
 
             return (
               <div
@@ -169,21 +165,21 @@ export default function MarketSection({ title, rows, loading: loadingProp, favor
                     <MiniChart symbol={r.symbol} width={60} height={24} />
                   </div>
 
-                  {/* Right: Price + RSI + Signal + AI Score */}
+                  {/* Right: Price + RSI + Signal + TP/SL */}
                   <div className="flex items-center gap-2">
-                    <div className="text-right leading-tight font-mono min-w-[65px]">
+                    <div className="text-right leading-tight font-mono min-w-[70px]">
                       <div className="text-[13px] text-white font-black">
                         {r.price ? `$${r.price.toFixed(2)}` : "-"}
                       </div>
                       <div
-                        className={`text-[11px] font-bold ${
+                        className={`text-[10px] font-bold ${
                           r.rsi > 70 ? "text-red-400" : r.rsi < 40 ? "text-blue-400" : "text-emerald-400"
                         }`}
                       >
                         RSI {r.rsi ? Math.round(r.rsi) : "-"}
                       </div>
                       <div
-                        className={`text-[11px] font-extrabold ${
+                        className={`text-[10px] font-extrabold ${
                           r.signal.includes("Buy")
                             ? "text-green-400"
                             : r.signal.includes("Sell")
@@ -192,6 +188,9 @@ export default function MarketSection({ title, rows, loading: loadingProp, favor
                         }`}
                       >
                         {r.signal}
+                      </div>
+                      <div className="text-[9px] text-purple-400 font-bold">
+                        TP: +{profitPct}%
                       </div>
                     </div>
 
@@ -218,11 +217,51 @@ export default function MarketSection({ title, rows, loading: loadingProp, favor
                 {/* Expanded Detail */}
                 {isExp && (
                   <div className="px-3 pb-3 border-t border-white/5 pt-3 bg-[#0b1220]/50 space-y-2">
-                    {/* AI Analysis */}
+                    {/* TP/SL Section */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-2">
+                        <div className="text-[9px] text-green-400 uppercase font-bold">TP1</div>
+                        <div className="text-[12px] font-black text-green-400">${r.tp1.toFixed(2)}</div>
+                        <div className="text-[8px] text-green-300">+{profitPct}%</div>
+                      </div>
+                      <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-2">
+                        <div className="text-[9px] text-red-400 uppercase font-bold">SL</div>
+                        <div className="text-[12px] font-black text-red-400">${r.sl.toFixed(2)}</div>
+                        <div className="text-[8px] text-red-300">-{lossPct}%</div>
+                      </div>
+                      <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-2">
+                        <div className="text-[9px] text-purple-400 uppercase font-bold">TP2</div>
+                        <div className="text-[12px] font-black text-purple-400">${r.tp2.toFixed(2)}</div>
+                        <div className="text-[8px] text-purple-300">+{((r.tp2 - r.price) / r.price * 100).toFixed(1)}%</div>
+                      </div>
+                    </div>
+
+                    {/* AI Zone */}
+                    <div className="bg-[#1b2435] rounded-lg p-2 border border-white/5">
+                      <div className="text-[9px] text-cyan-400 uppercase font-bold mb-1">🎯 AI Zone</div>
+                      <div className="grid grid-cols-3 gap-1 text-[9px]">
+                        <div>
+                          <span className="text-gray-500">Support</span>
+                          <div className="text-cyan-400 font-bold">${r.aiZone.support.toFixed(2)}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Midpoint</span>
+                          <div className="text-yellow-400 font-bold">${r.aiZone.midpoint.toFixed(2)}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Resistance</span>
+                          <div className="text-orange-400 font-bold">${r.aiZone.resistance.toFixed(2)}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* AI Score */}
                     <div className="grid grid-cols-2 gap-2">
                       <div className="bg-[#1b2435] rounded-lg p-2">
                         <div className="text-[9px] text-gray-500 uppercase font-bold">AI Score</div>
-                        <div className="text-[13px] font-black text-emerald-400">{r.aiScore || "-"}</div>
+                        <div className="text-[13px] font-black" style={{ color: r.aiScore >= 75 ? "#10b981" : r.aiScore >= 60 ? "#3b82f6" : "#f59e0b" }}>
+                          {r.aiScore}
+                        </div>
                       </div>
                       <div className="bg-[#1b2435] rounded-lg p-2">
                         <div className="text-[9px] text-gray-500 uppercase font-bold">Signal</div>
@@ -231,42 +270,6 @@ export default function MarketSection({ title, rows, loading: loadingProp, favor
                         }`}>{r.signal}</div>
                       </div>
                     </div>
-
-                    {/* Future Analysis */}
-                    {future && (
-                      <div className="space-y-2">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="bg-[#1b2435] rounded-lg p-2">
-                            <div className="text-[9px] text-gray-500 uppercase font-bold">Future Score</div>
-                            <div className="text-[13px] font-black" style={{ color: future.futureScore >= 75 ? "#10b981" : future.futureScore >= 60 ? "#3b82f6" : "#f59e0b" }}>
-                              {future.futureScore}
-                            </div>
-                          </div>
-                          <div className="bg-[#1b2435] rounded-lg p-2">
-                            <div className="text-[9px] text-gray-500 uppercase font-bold">Trend</div>
-                            <div className={`text-[13px] font-black ${
-                              future.trend.includes("Up") ? "text-emerald-400" : future.trend.includes("Down") ? "text-red-400" : "text-yellow-400"
-                            }`}>{future.trend}</div>
-                          </div>
-                          <div className="bg-[#1b2435] rounded-lg p-2">
-                            <div className="text-[9px] text-gray-500 uppercase font-bold">RSI</div>
-                            <div className="text-[13px] font-black text-blue-400">{future.rsi.toFixed(1)}</div>
-                          </div>
-                          <div className="bg-[#1b2435] rounded-lg p-2">
-                            <div className="text-[9px] text-gray-500 uppercase font-bold">5D Change</div>
-                            <div className={`text-[13px] font-black ${future.change5d > 0 ? "text-emerald-400" : "text-red-400"}`}>
-                              {future.change5d > 0 ? "+" : ""}{future.change5d.toFixed(2)}%
-                            </div>
-                          </div>
-                        </div>
-                        <div className="bg-[#0f172a] rounded-lg p-2 text-[10px] text-gray-300 space-y-1">
-                          <div>📊 {future.analysis?.trend_strength}</div>
-                          <div>📈 {future.analysis?.rsi_level}</div>
-                          <div>📦 {future.analysis?.volume_status}</div>
-                          <div>🔄 {future.analysis?.macd_signal}</div>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
