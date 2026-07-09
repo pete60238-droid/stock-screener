@@ -19,6 +19,12 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [username, setUsername] = useState("");
 
+  const toggleFavorite = (sym) => {
+    setFavorites((prev) =>
+      prev.includes(sym) ? prev.filter((x) => x !== sym) : [...prev, sym]
+    );
+  };
+
   // ✅ โหลดสถานะสมาชิกตอนเปิดแอป
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -84,13 +90,7 @@ export default function Home() {
             loading={loading}
             rows={futureDiscovery}
             favorites={favorites}
-            toggleFavorite={(sym) =>
-              setFavorites((prev) =>
-                prev.includes(sym)
-                  ? prev.filter((x) => x !== sym)
-                  : [...prev, sym]
-              )
-            }
+            toggleFavorite={toggleFavorite}
           />
         );
       case "scanner":
