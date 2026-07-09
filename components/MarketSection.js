@@ -26,7 +26,8 @@ const COMPANY_MAP = {
 export default function MarketSection({ title, rows, loading: loadingProp, favorites = [], toggleFavorite }) {
   const usingParentData = Array.isArray(rows);
   const [data, setData] = useState({});
-  const [expanded, setExpanded] = useState(null);
+  // ✅ ตั้งค่าให้แสดง TP/SL/AI Zone เป็นค่าเริ่มต้นสำหรับหุ้นทั้งหมด (Auto-Expand All)
+  const [expanded, setExpanded] = useState(new Set(DEFAULT_SYMBOLS));
 
   useEffect(() => {
     if (usingParentData) return;
@@ -110,7 +111,7 @@ export default function MarketSection({ title, rows, loading: loadingProp, favor
         <div className="flex flex-col divide-y divide-gray-800/50">
           {list.map((r, i) => {
             const isFav = favorites.includes(r.symbol);
-            const isExp = expanded === r.symbol;
+            const isExp = expanded.has(r.symbol);
             const fullData = data[r.symbol];
             const profitPct = r.price > 0 && fullData ? (((fullData.tp1 - r.price) / r.price) * 100).toFixed(1) : 0;
             const lossPct = r.price > 0 && fullData ? (((r.price - fullData.sl) / r.price) * 100).toFixed(1) : 0;
@@ -120,7 +121,15 @@ export default function MarketSection({ title, rows, loading: loadingProp, favor
                 {/* Main Row — UI เดิม + โลโก้ + กราฟย่อ */}
                 <div
                   className="flex items-center justify-between py-[10px] hover:bg-[#111827]/40 transition-all cursor-pointer"
-                  onClick={() => setExpanded(isExp ? null : r.symbol)}
+                  onClick={() => {
+                    const newExpanded = new Set(expanded);
+                    if (isExp) {
+                      newExpanded.delete(r.symbol);
+                    } else {
+                      newExpanded.add(r.symbol);
+                    }
+                    setExpanded(newExpanded);
+                  }}
                 >
                   <Link
                     href={`/analyze/${r.symbol}`}
